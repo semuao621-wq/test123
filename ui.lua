@@ -1,262 +1,3 @@
-repeat task.wait() until game:IsLoaded()
-
--- ═══════════════════════════════════════════════════════════
--- AUTH (premium key) - no raw script link
--- ═══════════════════════════════════════════════════════════
-local CONFIG = {
-    API_URL = "https://www.kingvypers.site",
-    ENDPOINT = "/api/validate-key",
-    SAVE_KEY = true,
-    KEY_FILE = "SavedKey.txt",
-    DISCORD_LINK = "https://discord.gg/eEqGnt4the",
-    WHATSAPP_LINK = "https://wa.me/+6281225363857",
-    THEME = {
-        BG_PRIMARY = Color3.fromRGB(10, 5, 20),
-        BG_SECONDARY = Color3.fromRGB(18, 10, 30),
-        BG_CARD = Color3.fromRGB(25, 15, 40),
-        BG_INPUT = Color3.fromRGB(30, 20, 45),
-        ACCENT = Color3.fromRGB(138, 43, 226),
-        ACCENT_HOVER = Color3.fromRGB(168, 73, 255),
-        ACCENT_DARK = Color3.fromRGB(108, 20, 180),
-        NEON_PURPLE = Color3.fromRGB(191, 64, 191),
-        NEON_BRIGHT = Color3.fromRGB(218, 112, 214),
-        NEON_GLOW = Color3.fromRGB(148, 0, 211),
-        SUCCESS = Color3.fromRGB(123, 239, 178),
-        ERROR = Color3.fromRGB(255, 85, 127),
-        WARNING = Color3.fromRGB(255, 179, 71),
-        INFO = Color3.fromRGB(116, 185, 255),
-        TEXT_PRIMARY = Color3.fromRGB(255, 255, 255),
-        TEXT_SECONDARY = Color3.fromRGB(200, 195, 220),
-        TEXT_MUTED = Color3.fromRGB(150, 145, 170),
-        TEXT_DARK = Color3.fromRGB(100, 95, 120),
-        BORDER = Color3.fromRGB(45, 35, 70),
-        BORDER_BRIGHT = Color3.fromRGB(138, 43, 226),
-        SHADOW = Color3.fromRGB(0, 0, 0),
-    }
-}
-
-local AuthHttp = game:GetService("HttpService")
-local AuthPlayers = game:GetService("Players")
-local AuthCoreGui = game:GetService("CoreGui")
-local AuthTween = game:GetService("TweenService")
-local AuthUIS = game:GetService("UserInputService")
-local AuthPlayer = AuthPlayers.LocalPlayer
-
-local function GetHWID()
-    if gethwid then return gethwid() end
-    if syn and syn.fingerprint then return syn.fingerprint() end
-    if identifyexecutor then
-        return identifyexecutor() .. "_" .. game:GetService("RbxAnalyticsService"):GetClientId()
-    end
-    return game:GetService("RbxAnalyticsService"):GetClientId()
-end
-
-local function GetSavedKey()
-    if not CONFIG.SAVE_KEY then return nil end
-    local ok, r = pcall(function()
-        if isfile and readfile and isfile(CONFIG.KEY_FILE) then return readfile(CONFIG.KEY_FILE) end
-        return nil
-    end)
-    return ok and r or nil
-end
-
-local function SaveKey(key)
-    if not CONFIG.SAVE_KEY then return false end
-    return pcall(function() if writefile then writefile(CONFIG.KEY_FILE, key) end end)
-end
-
-local function DeleteKey()
-    pcall(function()
-        if delfile and isfile and isfile(CONFIG.KEY_FILE) then delfile(CONFIG.KEY_FILE) end
-    end)
-end
-
-local function AuthNotify(t, text, dur)
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", { Title = t, Text = text, Duration = dur or 5 })
-    end)
-end
-
-local function CopyClip(text)
-    if setclipboard then setclipboard(text) return true end
-    return false
-end
-
-local function ApiRequest(url, method, headers, body)
-    for _, fn in ipairs({
-        function()
-            if syn and syn.request then return syn.request({ Url = url, Method = method, Headers = headers, Body = body }) end
-        end,
-        function()
-            if request then return request({ Url = url, Method = method, Headers = headers, Body = body }) end
-        end,
-        function()
-            if http_request then return http_request({ Url = url, Method = method, Headers = headers, Body = body }) end
-        end,
-    }) do
-        local ok, res = pcall(fn)
-        if ok and res and (res.Success or res.StatusCode == 200) then return res end
-    end
-    return nil
-end
-
-local function ValidateKey(keyCode)
-    local url = CONFIG.API_URL .. CONFIG.ENDPOINT
-    local body = AuthHttp:JSONEncode({ key = keyCode, hwid = GetHWID() })
-    local res = ApiRequest(url, "POST", { ["Content-Type"] = "application/json" }, body)
-    if not res then return { success = false, message = "Connection failed. Check your internet." } end
-    local ok, data = pcall(function() return AuthHttp:JSONDecode(res.Body) end)
-    return ok and data or { success = false, message = "Invalid response from server" }
-end
-
--- Auth UI (simplified single panel)
-local function CreateAuthUI()
-    pcall(function() local e = AuthCoreGui:FindFirstChild("AuthLoader") if e then e:Destroy() end end)
-    local Gui = Instance.new("ScreenGui")
-    Gui.Name = "AuthLoader"
-    Gui.ResetOnSpawn = false
-    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    Gui.DisplayOrder = 999
-    if gethui then Gui.Parent = gethui() elseif syn and syn.protect_gui then syn.protect_gui(Gui) Gui.Parent = AuthCoreGui else Gui.Parent = AuthCoreGui end
-
-    local Overlay = Instance.new("Frame")
-    Overlay.Size = UDim2.new(1,0,1,0)
-    Overlay.BackgroundColor3 = Color3.new(0,0,0)
-    Overlay.BackgroundTransparency = 0.4
-    Overlay.Parent = Gui
-
-    local Container = Instance.new("Frame")
-    Container.AnchorPoint = Vector2.new(0.5,0.5)
-    Container.Position = UDim2.new(0.5,0,0.5,0)
-    Container.Size = UDim2.new(0, 360, 0, 200)
-    Container.BackgroundColor3 = CONFIG.THEME.BG_PRIMARY
-    Container.Parent = Gui
-    Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 12)
-    Instance.new("UIStroke", Container).Color = CONFIG.THEME.BORDER_BRIGHT
-
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1,-24,0,24)
-    Title.Position = UDim2.new(0,12,0,12)
-    Title.BackgroundTransparency = 1
-    Title.Font = Enum.Font.GothamBold
-    Title.Text = "License"
-    Title.TextColor3 = CONFIG.THEME.TEXT_PRIMARY
-    Title.TextSize = 16
-    Title.Parent = Container
-
-    local InputBox = Instance.new("TextBox")
-    InputBox.Name = "KeyInput"
-    InputBox.Position = UDim2.new(0,12,0,44)
-    InputBox.Size = UDim2.new(1,-24,0,36)
-    InputBox.BackgroundColor3 = CONFIG.THEME.BG_INPUT
-    InputBox.PlaceholderText = "XXXX-XXXX-XXXX-XXXX"
-    InputBox.PlaceholderColor3 = CONFIG.THEME.TEXT_DARK
-    InputBox.Text = ""
-    InputBox.TextColor3 = CONFIG.THEME.TEXT_PRIMARY
-    InputBox.Font = Enum.Font.GothamMedium
-    InputBox.TextSize = 12
-    InputBox.ClearTextOnFocus = false
-    InputBox.Parent = Container
-    Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 8)
-
-    local VerifyBtn = Instance.new("TextButton")
-    VerifyBtn.Name = "VerifyButton"
-    VerifyBtn.Position = UDim2.new(0,12,0,88)
-    VerifyBtn.Size = UDim2.new(1,-24,0,36)
-    VerifyBtn.BackgroundColor3 = CONFIG.THEME.ACCENT
-    VerifyBtn.Text = "Verify"
-    VerifyBtn.TextColor3 = CONFIG.THEME.TEXT_PRIMARY
-    VerifyBtn.Font = Enum.Font.GothamBold
-    VerifyBtn.TextSize = 12
-    VerifyBtn.Parent = Container
-    Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 8)
-
-    local StatusLbl = Instance.new("TextLabel")
-    StatusLbl.Name = "Status"
-    StatusLbl.Position = UDim2.new(0,12,0,130)
-    StatusLbl.Size = UDim2.new(1,-24,0,16)
-    StatusLbl.BackgroundTransparency = 1
-    StatusLbl.Font = Enum.Font.GothamMedium
-    StatusLbl.Text = ""
-    StatusLbl.TextColor3 = CONFIG.THEME.TEXT_MUTED
-    StatusLbl.TextSize = 10
-    StatusLbl.Parent = Container
-
-    local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Position = UDim2.new(1,-36,0,8)
-    CloseBtn.Size = UDim2.new(0,28,0,28)
-    CloseBtn.BackgroundColor3 = CONFIG.THEME.BG_CARD
-    CloseBtn.Text = "✕"
-    CloseBtn.TextColor3 = CONFIG.THEME.TEXT_MUTED
-    CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.TextSize = 12
-    CloseBtn.Parent = Container
-    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
-
-    return { Gui = Gui, Container = Container, Overlay = Overlay, KeyInput = InputBox, VerifyButton = VerifyBtn, Status = StatusLbl, CloseButton = CloseBtn }
-end
-
-local function DestroyAuthUI(ui)
-    if not ui or not ui.Gui then return end
-    AuthTween:Create(ui.Overlay, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
-    AuthTween:Create(ui.Container, TweenInfo.new(0.3), { BackgroundTransparency = 1, Size = UDim2.new(0,0,0,0) }):Play()
-    task.wait(0.35)
-    pcall(function() ui.Gui:Destroy() end)
-end
-
--- Will be set below: run main script (Vyper UI) after auth success
-local AuthCompleted = false
-
-local function HandleVerification(ui)
-    local key = ui.KeyInput.Text:upper():gsub("%s+", "")
-    if key == "" then ui.Status.Text = "Enter a key" ui.Status.TextColor3 = CONFIG.THEME.ERROR return end
-    if #key < 10 then ui.Status.Text = "Invalid format" ui.Status.TextColor3 = CONFIG.THEME.ERROR return end
-
-    ui.VerifyButton.Active = false
-    ui.VerifyButton.Text = "Verifying..."
-    ui.Status.Text = "Authenticating..."
-    ui.Status.TextColor3 = CONFIG.THEME.INFO
-    task.wait(0.3)
-
-    local result = ValidateKey(key)
-    ui.VerifyButton.Active = true
-    ui.VerifyButton.Text = "Verify"
-
-    if result.success then
-        ui.Status.Text = "Success"
-        ui.Status.TextColor3 = CONFIG.THEME.SUCCESS
-        SaveKey(key)
-        AuthNotify("Welcome", "Access granted.", 3)
-        task.wait(1)
-        DestroyAuthUI(ui)
-        AuthCompleted = true
-    else
-        ui.Status.Text = result.message or "Invalid key"
-        ui.Status.TextColor3 = CONFIG.THEME.ERROR
-        ui.KeyInput.Text = ""
-    end
-end
-
-local function AuthMain()
-    local saved = GetSavedKey()
-    if saved and saved ~= "" then
-        AuthNotify("Please Wait", "Validating license...", 2)
-        local result = ValidateKey(saved)
-        if result.success then
-            AuthNotify("Welcome", "Authentication successful.", 3)
-            AuthCompleted = true
-            return
-        end
-        DeleteKey()
-    end
-
-    local ui = CreateAuthUI()
-    ui.CloseButton.MouseButton1Click:Connect(function() DestroyAuthUI(ui) end)
-    ui.VerifyButton.MouseButton1Click:Connect(function() HandleVerification(ui) end)
-    ui.KeyInput.FocusLost:Connect(function(enter) if enter then HandleVerification(ui) end end)
-end
-
--- Main script (Vyper UI) runs only after auth success — no raw link
 local HttpService = game:GetService("HttpService")
 
 if not isfolder("Vyper") then
@@ -685,7 +426,7 @@ function Vyper:MakeNotify(NotifyConfig)
         TextLabel2.Parent = NotifyFrameReal
         TextLabel2.Size = UDim2.new(1, -20, 0, 13)
 
-        TextLabel2.Size = UDim2.new(1, -20, 0, 13 + (13 * math.floor(TextLabel2.TextBounds.X / TextLabel2.AbsoluteSize.X)))
+        TextLabel2.Size = UDim2.new(1, -20, 0, 13 + (13 * (TextLabel2.TextBounds.X // TextLabel2.AbsoluteSize.X)))
         TextLabel2.TextWrapped = true
 
         if TextLabel2.AbsoluteSize.Y < 27 then
@@ -786,8 +527,8 @@ function Vyper:Window(GuiConfig)
     DropShadowHolder.Name = "DropShadowHolder"
     DropShadowHolder.Parent = Vyper
 
-    DropShadowHolder.Position = UDim2.new(0, (math.floor(Vyper.AbsoluteSize.X / 2) - math.floor(DropShadowHolder.Size.X.Offset / 2)), 0,
-        (math.floor(Vyper.AbsoluteSize.Y / 2) - math.floor(DropShadowHolder.Size.Y.Offset / 2)))
+    DropShadowHolder.Position = UDim2.new(0, (Vyper.AbsoluteSize.X // 2 - DropShadowHolder.Size.X.Offset // 2), 0,
+        (Vyper.AbsoluteSize.Y // 2 - DropShadowHolder.Size.Y.Offset // 2))
     DropShadow.Image = "rbxassetid://6015897843"
     DropShadow.ImageColor3 = Color3.fromRGB(15, 15, 15)
     DropShadow.ImageTransparency = 1
@@ -810,32 +551,8 @@ function Vyper:Window(GuiConfig)
         Main.BackgroundTransparency = 1
         Main.ImageTransparency = GuiConfig.ThemeTransparency or 0.15
     else
-        Main.BackgroundColor3 = Color3.fromRGB(20, 15, 30) -- Dark base for gradient
-        Main.BackgroundTransparency = 0.15
-        
-        -- Add purple-cyan gradient overlay for 3D modern look
-        local GradientOverlay = Instance.new("Frame")
-        GradientOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        GradientOverlay.BackgroundTransparency = 0.3
-        GradientOverlay.BorderSizePixel = 0
-        GradientOverlay.Size = UDim2.new(1, 0, 1, 0)
-        GradientOverlay.ZIndex = 1
-        GradientOverlay.Name = "GradientOverlay"
-        
-        local MainGradient = Instance.new("UIGradient")
-        MainGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(80, 40, 120)),   -- Dark purple
-            ColorSequenceKeypoint.new(0.3, Color3.fromRGB(138, 43, 226)),  -- Purple
-            ColorSequenceKeypoint.new(0.7, Color3.fromRGB(100, 150, 255)), -- Cyan-blue
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(150, 240, 255))  -- Bright cyan
-        })
-        MainGradient.Rotation = 135 -- Diagonal gradient like logo
-        MainGradient.Parent = GradientOverlay
-        
-        local GradientCorner = Instance.new("UICorner")
-        GradientCorner.Parent = GradientOverlay
-        
-        GradientOverlay.Parent = Main
+        Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- Latar Warna Window
+        Main.BackgroundTransparency = 0.1
     end
 
     Main.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1053,26 +770,16 @@ function Vyper:Window(GuiConfig)
         Overlay.ZIndex = 50
         Overlay.Parent = DropShadowHolder
 
-        local Dialog = Instance.new("Frame") -- Changed to Frame for gradient
+        local Dialog = Instance.new("ImageLabel")
         Dialog.Size = UDim2.new(0, 300, 0, 150)
         Dialog.Position = UDim2.new(0.5, -150, 0.5, -75)
-        Dialog.BackgroundColor3 = Color3.fromRGB(20, 15, 30) -- Dark purple base
-        Dialog.BackgroundTransparency = 0.1
+        Dialog.Image = "rbxassetid://9542022979"
+        Dialog.ImageTransparency = 0
         Dialog.BorderSizePixel = 0
         Dialog.ZIndex = 51
         Dialog.Parent = Overlay
         local UICorner = Instance.new("UICorner", Dialog)
         UICorner.CornerRadius = UDim.new(0, 8)
-        
-        -- Add purple-cyan gradient to dialog
-        local DialogMainGradient = Instance.new("UIGradient")
-        DialogMainGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(80, 40, 120)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(138, 43, 226)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(100, 180, 255))
-        })
-        DialogMainGradient.Rotation = 135
-        DialogMainGradient.Parent = Dialog
 
         local DialogGlow = Instance.new("Frame")
         DialogGlow.Size = UDim2.new(0, 310, 0, 160)
@@ -1088,9 +795,11 @@ function Vyper:Window(GuiConfig)
 
         local Gradient = Instance.new("UIGradient")
         Gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(138, 43, 226)),   -- Purple
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 240, 255)),  -- Bright cyan
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(138, 43, 226))    -- Purple
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(138, 43, 226)),    -- Merah
+            ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 255, 255)), -- Putih
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 30, 30)),    -- Merah gelap
+            ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 255, 255)), -- Putih
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(138, 43, 226))     -- Merah
         })
         Gradient.Rotation = 90
         Gradient.Parent = DialogGlow
@@ -1122,7 +831,7 @@ function Vyper:Window(GuiConfig)
         Yes.Size = UDim2.new(0.45, -10, 0, 35)
         Yes.Position = UDim2.new(0.05, 0, 1, -55)
         Yes.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        Yes.BackgroundTransparency = 0.92
+        Yes.BackgroundTransparency = 0.935
         Yes.Text = "Yes"
         Yes.Font = Enum.Font.GothamBold
         Yes.TextSize = 15
@@ -1132,21 +841,12 @@ function Vyper:Window(GuiConfig)
         Yes.Name = "Yes"
         Yes.Parent = Dialog
         Instance.new("UICorner", Yes).CornerRadius = UDim.new(0, 6)
-        
-        -- Add gradient to Yes button
-        local YesGradient = Instance.new("UIGradient")
-        YesGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-        })
-        YesGradient.Rotation = 45
-        YesGradient.Parent = Yes
 
         local Cancel = Instance.new("TextButton")
         Cancel.Size = UDim2.new(0.45, -10, 0, 35)
         Cancel.Position = UDim2.new(0.5, 10, 1, -55)
         Cancel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        Cancel.BackgroundTransparency = 0.92
+        Cancel.BackgroundTransparency = 0.935
         Cancel.Text = "Cancel"
         Cancel.Font = Enum.Font.GothamBold
         Cancel.TextSize = 15
@@ -1156,15 +856,6 @@ function Vyper:Window(GuiConfig)
         Cancel.Name = "Cancel"
         Cancel.Parent = Dialog
         Instance.new("UICorner", Cancel).CornerRadius = UDim.new(0, 6)
-        
-        -- Add gradient to Cancel button
-        local CancelGradient = Instance.new("UIGradient")
-        CancelGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-        })
-        CancelGradient.Rotation = 45
-        CancelGradient.Parent = Cancel
 
         Yes.MouseButton1Click:Connect(function()
             if Vyper then Vyper:Destroy() end
@@ -1318,8 +1009,7 @@ function Vyper:Window(GuiConfig)
     local DropPageLayout = Instance.new("UIPageLayout");
 
     DropdownSelect.AnchorPoint = Vector2.new(1, 0.5)
-    DropdownSelect.BackgroundColor3 = Color3.fromRGB(20, 15, 30) -- Match Main window base
-    DropdownSelect.BackgroundTransparency = 0.15 -- Match transparency
+    DropdownSelect.BackgroundColor3 = Color3.fromRGB(30.00000011175871, 30.00000011175871, 30.00000011175871)
     DropdownSelect.BorderColor3 = Color3.fromRGB(0, 0, 0)
     DropdownSelect.BorderSizePixel = 0
     DropdownSelect.LayoutOrder = 1
@@ -1328,15 +1018,6 @@ function Vyper:Window(GuiConfig)
     DropdownSelect.Name = "DropdownSelect"
     DropdownSelect.ClipsDescendants = true
     DropdownSelect.Parent = MoreBlur
-    
-    -- Add gradient to dropdown select
-    local DropSelectGradient = Instance.new("UIGradient")
-    DropSelectGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-    })
-    DropSelectGradient.Rotation = 90
-    DropSelectGradient.Parent = DropdownSelect
 
     ConnectButton.Activated:Connect(function()
         if MoreBlur.Visible then
@@ -1355,8 +1036,8 @@ function Vyper:Window(GuiConfig)
     UIStroke14.Parent = DropdownSelect
 
     DropdownSelectReal.AnchorPoint = Vector2.new(0.5, 0.5)
-    DropdownSelectReal.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- White base to make gradient vibrant!
-    DropdownSelectReal.BackgroundTransparency = 0.3 -- Match Main window overlay transparency
+    DropdownSelectReal.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- Latar Warna Dropdown
+    DropdownSelectReal.BackgroundTransparency = 0.7
     DropdownSelectReal.BorderColor3 = Color3.fromRGB(0, 0, 0)
     DropdownSelectReal.BorderSizePixel = 0
     DropdownSelectReal.LayoutOrder = 1
@@ -1364,17 +1045,6 @@ function Vyper:Window(GuiConfig)
     DropdownSelectReal.Size = UDim2.new(1, 1, 1, 1)
     DropdownSelectReal.Name = "DropdownSelectReal"
     DropdownSelectReal.Parent = DropdownSelect
-    
-    -- Add same gradient overlay style as main window
-    local DropRealGradient = Instance.new("UIGradient")
-    DropRealGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0.0, Color3.fromRGB(80, 40, 120)),   -- Dark purple
-        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(138, 43, 226)),  -- Purple
-        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(100, 150, 255)), -- Cyan-blue
-        ColorSequenceKeypoint.new(1.0, Color3.fromRGB(150, 240, 255))  -- Bright cyan
-    })
-    DropRealGradient.Rotation = 135 -- Same diagonal as main window
-    DropRealGradient.Parent = DropdownSelectReal
 
     DropdownFolder.Name = "DropdownFolder"
     DropdownFolder.Parent = DropdownSelectReal
@@ -1578,8 +1248,8 @@ function Vyper:Window(GuiConfig)
             local SectionTitle = Instance.new("TextLabel");
 
             SectionReal.AnchorPoint = Vector2.new(0.5, 0)
-            SectionReal.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- White for gradient
-            SectionReal.BackgroundTransparency = 0.92
+            SectionReal.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            SectionReal.BackgroundTransparency = 0.9350000023841858
             SectionReal.BorderColor3 = Color3.fromRGB(0, 0, 0)
             SectionReal.BorderSizePixel = 0
             SectionReal.LayoutOrder = 1
@@ -1587,23 +1257,6 @@ function Vyper:Window(GuiConfig)
             SectionReal.Size = UDim2.new(1, 1, 0, 30)
             SectionReal.Name = "SectionReal"
             SectionReal.Parent = Section
-            
-            -- Add gradient for 3D effect
-            local SectionGradient = Instance.new("UIGradient")
-            SectionGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0.0, Color3.fromRGB(100, 50, 150)),
-                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(138, 43, 226)),
-                ColorSequenceKeypoint.new(1.0, Color3.fromRGB(100, 180, 255))
-            })
-            SectionGradient.Rotation = 90
-            SectionGradient.Parent = SectionReal
-            
-            -- Add glow stroke for 3D depth
-            local SectionGlow = Instance.new("UIStroke")
-            SectionGlow.Color = Color3.fromRGB(150, 100, 255)
-            SectionGlow.Thickness = 1
-            SectionGlow.Transparency = 0.7
-            SectionGlow.Parent = SectionReal
 
             UICorner.CornerRadius = UDim.new(0, 4)
             UICorner.Parent = SectionReal
@@ -1670,9 +1323,9 @@ function Vyper:Window(GuiConfig)
             UICorner1.Parent = SectionDecideFrame
 
             UIGradient.Color = ColorSequence.new {
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),   -- Purple
-                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 240, 255)), -- Bright cyan
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(138, 43, 226))    -- Purple
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 20)),
+                ColorSequenceKeypoint.new(0.5, GuiConfig.Color),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 20))
             }
             UIGradient.Parent = SectionDecideFrame
 
@@ -1801,21 +1454,12 @@ function Vyper:Window(GuiConfig)
                 local ParagraphContent = Instance.new("TextLabel")
 
                 Paragraph.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Paragraph.BackgroundTransparency = 0.92
+                Paragraph.BackgroundTransparency = 0.935
                 Paragraph.BorderSizePixel = 0
                 Paragraph.LayoutOrder = CountItem
                 Paragraph.Size = UDim2.new(1, 0, 0, 46)
                 Paragraph.Name = "Paragraph"
                 Paragraph.Parent = SectionAdd
-                
-                -- Add gradient
-                local ParagraphGradient = Instance.new("UIGradient")
-                ParagraphGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                ParagraphGradient.Rotation = 45
-                ParagraphGradient.Parent = Paragraph
 
                 UICorner14.CornerRadius = UDim.new(0, 4)
                 UICorner14.Parent = Paragraph
@@ -1943,19 +1587,10 @@ function Vyper:Window(GuiConfig)
 
                 local Panel = Instance.new("Frame")
                 Panel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Panel.BackgroundTransparency = 0.92
+                Panel.BackgroundTransparency = 0.935
                 Panel.Size = UDim2.new(1, 0, 0, baseHeight)
                 Panel.LayoutOrder = CountItem
                 Panel.Parent = SectionAdd
-                
-                -- Add gradient
-                local PanelGradient = Instance.new("UIGradient")
-                PanelGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                PanelGradient.Rotation = 45
-                PanelGradient.Parent = Panel
 
                 local UICorner = Instance.new("UICorner")
                 UICorner.CornerRadius = UDim.new(0, 4)
@@ -2087,19 +1722,10 @@ function Vyper:Window(GuiConfig)
 
                 local Button = Instance.new("Frame")
                 Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Button.BackgroundTransparency = 0.92
+                Button.BackgroundTransparency = 0.935
                 Button.Size = UDim2.new(1, 0, 0, 40)
                 Button.LayoutOrder = CountItem
                 Button.Parent = SectionAdd
-                
-                -- Add gradient
-                local ButtonGradient = Instance.new("UIGradient")
-                ButtonGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                ButtonGradient.Rotation = 45
-                ButtonGradient.Parent = Button
 
                 local UICorner = Instance.new("UICorner")
                 UICorner.CornerRadius = UDim.new(0, 4)
@@ -2173,20 +1799,11 @@ function Vyper:Window(GuiConfig)
                 local UICorner23 = Instance.new("UICorner")
 
                 Toggle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Toggle.BackgroundTransparency = 0.92
+                Toggle.BackgroundTransparency = 0.935
                 Toggle.BorderSizePixel = 0
                 Toggle.LayoutOrder = CountItem
                 Toggle.Name = "Toggle"
                 Toggle.Parent = SectionAdd
-                
-                -- Add gradient
-                local ToggleGradient = Instance.new("UIGradient")
-                ToggleGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                ToggleGradient.Rotation = 45
-                ToggleGradient.Parent = Toggle
 
                 UICorner20.CornerRadius = UDim.new(0, 4)
                 UICorner20.Parent = Toggle
@@ -2239,7 +1856,7 @@ function Vyper:Window(GuiConfig)
                 end
 
                 ToggleContent.Size = UDim2.new(1, -100, 0,
-                    12 + (12 * math.floor(ToggleContent.TextBounds.X / ToggleContent.AbsoluteSize.X)))
+                    12 + (12 * (ToggleContent.TextBounds.X // ToggleContent.AbsoluteSize.X)))
                 ToggleContent.TextWrapped = true
                 if ToggleConfig.Title2 ~= "" then
                     Toggle.Size = UDim2.new(1, 0, 0, ToggleContent.AbsoluteSize.Y + 47)
@@ -2250,7 +1867,7 @@ function Vyper:Window(GuiConfig)
                 ToggleContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     ToggleContent.TextWrapped = false
                     ToggleContent.Size = UDim2.new(1, -100, 0,
-                        12 + (12 * math.floor(ToggleContent.TextBounds.X / ToggleContent.AbsoluteSize.X)))
+                        12 + (12 * (ToggleContent.TextBounds.X // ToggleContent.AbsoluteSize.X)))
                     if ToggleConfig.Title2 ~= "" then
                         Toggle.Size = UDim2.new(1, 0, 0, ToggleContent.AbsoluteSize.Y + 47)
                     else
@@ -2365,22 +1982,13 @@ function Vyper:Window(GuiConfig)
                 local UIStroke7 = Instance.new("UIStroke");
 
                 Slider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Slider.BackgroundTransparency = 0.92
+                Slider.BackgroundTransparency = 0.9350000023841858
                 Slider.BorderColor3 = Color3.fromRGB(0, 0, 0)
                 Slider.BorderSizePixel = 0
                 Slider.LayoutOrder = CountItem
                 Slider.Size = UDim2.new(1, 0, 0, 46)
                 Slider.Name = "Slider"
                 Slider.Parent = SectionAdd
-                
-                -- Add gradient
-                local SliderGradient = Instance.new("UIGradient")
-                SliderGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                SliderGradient.Rotation = 45
-                SliderGradient.Parent = Slider
 
                 UICorner15.CornerRadius = UDim.new(0, 4)
                 UICorner15.Parent = Slider
@@ -2417,14 +2025,14 @@ function Vyper:Window(GuiConfig)
                 SliderContent.Parent = Slider
 
                 SliderContent.Size = UDim2.new(1, -180, 0,
-                    12 + (12 * math.floor(SliderContent.TextBounds.X / SliderContent.AbsoluteSize.X)))
+                    12 + (12 * (SliderContent.TextBounds.X // SliderContent.AbsoluteSize.X)))
                 SliderContent.TextWrapped = true
                 Slider.Size = UDim2.new(1, 0, 0, SliderContent.AbsoluteSize.Y + 33)
 
                 SliderContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     SliderContent.TextWrapped = false
                     SliderContent.Size = UDim2.new(1, -180, 0,
-                        12 + (12 * math.floor(SliderContent.TextBounds.X / SliderContent.AbsoluteSize.X)))
+                        12 + (12 * (SliderContent.TextBounds.X // SliderContent.AbsoluteSize.X)))
                     Slider.Size = UDim2.new(1, 0, 0, SliderContent.AbsoluteSize.Y + 33)
                     SliderContent.TextWrapped = true
                     UpdateSizeSection()
@@ -2594,22 +2202,13 @@ function Vyper:Window(GuiConfig)
                 local InputTextBox = Instance.new("TextBox");
 
                 Input.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Input.BackgroundTransparency = 0.92
+                Input.BackgroundTransparency = 0.9350000023841858
                 Input.BorderColor3 = Color3.fromRGB(0, 0, 0)
                 Input.BorderSizePixel = 0
                 Input.LayoutOrder = CountItem
                 Input.Size = UDim2.new(1, 0, 0, 46)
                 Input.Name = "Input"
                 Input.Parent = SectionAdd
-                
-                -- Add gradient
-                local InputGradient = Instance.new("UIGradient")
-                InputGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                InputGradient.Rotation = 45
-                InputGradient.Parent = Input
 
                 UICorner12.CornerRadius = UDim.new(0, 4)
                 UICorner12.Parent = Input
@@ -2647,14 +2246,14 @@ function Vyper:Window(GuiConfig)
                 InputContent.Parent = Input
 
                 InputContent.Size = UDim2.new(1, -180, 0,
-                    12 + (12 * math.floor(InputContent.TextBounds.X / InputContent.AbsoluteSize.X)))
+                    12 + (12 * (InputContent.TextBounds.X // InputContent.AbsoluteSize.X)))
                 InputContent.TextWrapped = true
                 Input.Size = UDim2.new(1, 0, 0, InputContent.AbsoluteSize.Y + 33)
 
                 InputContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     InputContent.TextWrapped = false
                     InputContent.Size = UDim2.new(1, -180, 0,
-                        12 + (12 * math.floor(InputContent.TextBounds.X / InputContent.AbsoluteSize.X)))
+                        12 + (12 * (InputContent.TextBounds.X // InputContent.AbsoluteSize.X)))
                     Input.Size = UDim2.new(1, 0, 0, InputContent.AbsoluteSize.Y + 33)
                     InputContent.TextWrapped = true
                     UpdateSizeSection()
@@ -2738,21 +2337,12 @@ function Vyper:Window(GuiConfig)
                 local OptionImg = Instance.new("ImageLabel")
 
                 Dropdown.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                Dropdown.BackgroundTransparency = 0.92
+                Dropdown.BackgroundTransparency = 0.935
                 Dropdown.BorderSizePixel = 0
                 Dropdown.LayoutOrder = CountItem
                 Dropdown.Size = UDim2.new(1, 0, 0, 46)
                 Dropdown.Name = "Dropdown"
                 Dropdown.Parent = SectionAdd
-                
-                -- Add gradient
-                local DropdownGradient = Instance.new("UIGradient")
-                DropdownGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                DropdownGradient.Rotation = 45
-                DropdownGradient.Parent = Dropdown
 
                 DropdownButton.Text = ""
                 DropdownButton.BackgroundTransparency = 1
@@ -2841,23 +2431,14 @@ function Vyper:Window(GuiConfig)
                 SearchBox.Text = ""
                 SearchBox.TextSize = 12
                 SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-                SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                SearchBox.BackgroundTransparency = 0.92
+                SearchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                SearchBox.BackgroundTransparency = 0.9
                 SearchBox.BorderSizePixel = 0
                 SearchBox.Size = UDim2.new(1, 0, 0, 25)
                 SearchBox.Position = UDim2.new(0, 0, 0, 0)
                 SearchBox.ClearTextOnFocus = false
                 SearchBox.Name = "SearchBox"
                 SearchBox.Parent = DropdownContainer
-                
-                -- Add gradient to search box
-                local SearchGradient = Instance.new("UIGradient")
-                SearchGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                })
-                SearchGradient.Rotation = 45
-                SearchGradient.Parent = SearchBox
 
                 local ScrollSelect = Instance.new("ScrollingFrame")
                 ScrollSelect.Size = UDim2.new(1, 0, 1, -30)
@@ -2922,20 +2503,10 @@ function Vyper:Window(GuiConfig)
                     local UICorner38 = Instance.new("UICorner")
                     local UICorner37 = Instance.new("UICorner")
 
-                    Option.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    Option.BackgroundTransparency = 0.999
+                    Option.BackgroundTransparency = 1
                     Option.Size = UDim2.new(1, 0, 0, 30)
                     Option.Name = "Option"
                     Option.Parent = ScrollSelect
-                    
-                    -- Add gradient to option
-                    local OptionGradient = Instance.new("UIGradient")
-                    OptionGradient.Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 255))
-                    })
-                    OptionGradient.Rotation = 45
-                    OptionGradient.Parent = Option
 
                     UICorner37.CornerRadius = UDim.new(0, 3)
                     UICorner37.Parent = Option
@@ -3013,7 +2584,7 @@ function Vyper:Window(GuiConfig)
                                     { Size = UDim2.new(0, 1, 0, 12) }):Play()
                                 TweenService:Create(Drop.ChooseFrame.UIStroke, TweenInfo.new(0.2), { Transparency = 0 })
                                     :Play()
-                                TweenService:Create(Drop, TweenInfo.new(0.2), { BackgroundTransparency = 0.92 }):Play()
+                                TweenService:Create(Drop, TweenInfo.new(0.2), { BackgroundTransparency = 0.935 }):Play()
                                 table.insert(texts, Drop.OptionText.Text)
                             else
                                 TweenService:Create(Drop.ChooseFrame, TweenInfo.new(0.1),
@@ -3140,8 +2711,5 @@ function Vyper:Window(GuiConfig)
 
     return Tabs
 end
-
-AuthMain()
-repeat task.wait() until AuthCompleted
 
 return Vyper
